@@ -1,0 +1,69 @@
+
+services:
+  # Cube.dev Semantic Layer Service
+  cube:
+    image: cubejs/cube:latest
+    container_name: cube
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - CUBEJS_API_TOKEN=METRICMIND_CUBE_TOKEN
+      - SNOWFLAKE_ACCOUNT="https://app.snowflake.com/ulrzwiy/ak43835/#/homepage"
+      - SNOWFLAKE_USER=SHABBIR
+      - SNOWFLAKE_PASSWORD=shabbir@12
+      - SNOWFLAKE_ROLE=METRICMIND_TEAM_ROLE
+      - SNOWFLAKE_DATABASE=METRICMIND_DB
+      - SNOWFLAKE_WAREHOUSE=METRICMIND_WH
+      - SNOWFLAKE_SCHEMA=DATA_MARTS
+    ports:
+      - '4000:4000'
+    volumes:
+      - ./cube/schema:/cube/schema:ro
+      - ./cube/config.js:/cube/config.js:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Agent API Service (FastAPI + Python Agent)
+  agent-api:
+    build: ./agent
+    container_name: agent-api
+    restart: unless-stopped
+    environment:
+      - CUBE_API_URL=http://cube:4000/cubejs-api
+      - CUBE_API_TOKEN=METRICMIND_CUBE_TOKEN
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-test-key}
+    ports:
+      - '8000:8000'
+    depends_on:
+      cube:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_CUBE_API_URL=http://localhost:4000/cubejs-api
+    ports:
+      - '3000:3000'
+    depends_on:
+      agent-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  cube-data:

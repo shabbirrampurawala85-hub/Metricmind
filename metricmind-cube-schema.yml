@@ -1,0 +1,87 @@
+# Cube.dev YAML Semantic Schema Definition
+# File: schema/Sales.yml
+# Description: Defines the unified business mathematics, dimensions, measures, and joins for the corporate BI engine.
+
+cubes:
+  - name: sales
+    sql: select * from {{ fct_sales.sql }} # Plugs directly into dbt fct_sales model downstream
+
+    joins: [] # Add joins here if linking to separate customer, product, or geo tables
+
+    measures:
+      - name: revenue
+        title: Total Revenue
+        type: sum
+        sql: revenue
+        format: currency
+
+      - name: material_cost
+        title: Total Material Cost
+        type: sum
+        sql: material_cost
+        format: currency
+
+      - name: shipping_cost
+        title: Total Shipping Cost
+        type: sum
+        sql: shipping_cost
+        format: currency
+
+      - name: gross_profit
+        title: Gross Profit
+        type: sum
+        sql: gross_profit
+        format: currency
+
+      - name: gross_margin_pct
+        title: Gross Margin %
+        type: number
+        # Governed metric formula: decoupled from individual BI tools and calculated on pre-aggregated fields
+        sql: "100.0 * ${gross_profit} / NULLIF(${revenue}, 0)"
+        format: percent
+
+      - name: transaction_count
+        title: Transaction Volume
+        type: count
+
+    dimensions:
+      - name: transaction_id
+        title: Transaction ID
+        type: number
+        sql: transaction_id
+        primary_key: true
+
+      - name: region
+        title: Region
+        type: string
+        sql: region
+
+      - name: product_category
+        title: Product Category
+        type: string
+        sql: product_category
+
+      - name: fiscal_quarter
+        title: Fiscal Quarter
+        type: string
+        sql: fiscal_quarter
+
+      - name: date
+        title: Transaction Date
+        type: time
+        sql: transaction_date
+
+    pre_aggregations:
+      # Performance Layer: Roll up sales by region, category, and quarter to accelerate AI query times
+      - name: regional_quarterly_sales
+        measures:
+          - revenue
+          - material_cost
+          - shipping_cost
+          - gross_profit
+        dimensions:
+          - region
+          - product_category
+          - fiscal_quarter
+        time_dimension: date
+        granularity: day
